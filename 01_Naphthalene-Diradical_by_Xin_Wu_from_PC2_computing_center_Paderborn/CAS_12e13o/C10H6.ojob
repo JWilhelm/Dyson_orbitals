@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH --job-name=C10H6
+#SBATCH --time=120
+#SBATCH --ntasks=192
+#SBATCH --partition=normal
+#SBATCH --output=C10H6.oout
+#SBATCH --error=C10H6.oerr
+#SBATCH --nodes=1
+
+export OMP_NUM_THREADS=1
+export NCPUS=192
+
+module reset
+module load mpi/OpenMPI/4.1.6-GCC-13.2.0 chem/orca/6.1.0
+module list
+
+trap '
+echo "Job terminated from outer space!"
+rm -rf *.tmp
+exit 1
+' TERM
+
+# ORCA does not like to run in shared directories
+# Hence, copy all necessary data to the local workingdir
+ORUNDIR=/dev/shm/ORUNDIR_${SLURM_JOB_ID}
+mkdir -p ${ORUNDIR}
+cp *.xyz *.gbw *.pot *.hess *.mdrestart *.mp2* C10H6.inp ${ORUNDIR} 2>/dev/null
+cd ${ORUNDIR}
+
+# start ORCA
+MYORCA="${ORCA_PATH}/orca C10H6.inp"
+echo "$(hostname): starting in ${ORUNDIR} ${MYORCA}"
+echo "mpirun is: $(which mpirun)"
+echo "Directory contents is:"; ls -l
+eval "${MYORCA}"
+
+# clean-up and copy the data back to original directory
+res=$?
+rm -rf *.inp *.tmp*
+cp * ${SLURM_SUBMIT_DIR}
+exit $res
